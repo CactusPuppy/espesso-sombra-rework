@@ -1,0 +1,22 @@
+rule: "Create ally and dummy bots"
+Event.OngoingPlayer
+if (EventPlayer() == HostPlayer())
+if (IsMeleeing())
+{
+  CreateDummyBot(
+    Hero: Hero.Roadhog,
+    Team: IsCrouching(EventPlayer()) ? OppositeTeamOf(TeamOf()) : TeamOf(),
+    Slot: -1,
+    Position: PositionOf() + 5 * FacingDirectionOf(),
+    Facing: -1 * FacingDirectionOf(),
+  );
+}
+
+rule: "Keep dummy bots under full health"
+Event.OngoingPlayer
+if (IsDummyBot())
+if (NormalizedHealth() > 0.9)
+{
+  Damage(EventPlayer(), null, 1);
+  SetPlayerHealth(EventPlayer(), 0.5 * MaxHealth());
+}

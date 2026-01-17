@@ -1,0 +1,228 @@
+Number MAX_HACK_CHARGES: 3;
+playervar Number hackCharges = MAX_HACK_CHARGES;
+Number HACK_COOLDOWN: 9;
+playervar Number hackRechargeTimer;
+playervar Player hackTarget;
+playervar Any[] hackFX = [];
+single struct HackBuffData {
+    public Any[] VFX;
+    public Number expirationTimestamp;
+
+    public static HackBuffData New(Any[] effectHandles, Number endTimestamp): single {
+      VFX: effectHandles,
+      expirationTimestamp: endTimestamp,
+    };
+}
+playervar HackBuffData hackBuffData = null;
+
+// This is a simplified calculation of the hardpoint,
+// since it's not actually possible to get the actual hardpoint beyond their bind pose
+Vector hardpoint(Player p): PositionOf(p) + 1.3 * Up();
+
+Player closestTarget(Player p = EventPlayer()): PlayersInViewAngle(p, Team.All, 20)
+  .Filter(t => t.IsAlive() && HasSpawned(t) && IsInLineOfSight(p.EyePosition(), hardpoint(t), BarrierLOS.EnemyBarriersBlock))
+  .Sort(t => AngleBetweenVectors(p.FacingDirection(), hardpoint(t) - p.EyePosition()))
+  .First;
+
+rule: "If a Sombra has fewer than max charges, restore them"
+Event.OngoingPlayer
+if (HasSpawned())
+if (EffectiveHero() == Hero.Sombra)
+if (hackCharges < MAX_HACK_CHARGES)
+{
+  hackRechargeTimer = HACK_COOLDOWN;
+  ChaseVariableAtRate(hackRechargeTimer, 0, 1, RateChaseReevaluation.None);
+  WaitUntil(hackRechargeTimer == 0 || EffectiveHero() != Hero.Sombra, HACK_COOLDOWN);
+  AbortIfConditionIsFalse();
+  hackCharges += 1;
+  LoopIfConditionIsTrue();
+}
+rule: "When a Sombra becomes alive on a spawn point, recharge all hack charges"
+Event.OngoingPlayer
+if (HasSpawned())
+if (IsAlive())
+if (EffectiveHero() == Hero.Sombra)
+{
+  AbortIf(SpawnPoints(TeamOf()).All(sp => DistanceBetween(PositionOf(<Player>sp), PositionOf(EventPlayer())) > 0.1));
+  hackCharges = MAX_HACK_CHARGES;
+}
+
+rule: "When Sombra runs out of hack charges, trigger the cooldown"
+Event.OngoingPlayer
+if (EffectiveHero() == Hero.Sombra)
+if (hackCharges <= 0)
+{
+  SetAbilityCooldown(EventPlayer(), Button.SecondaryFire, hackRechargeTimer);
+}
+
+rule: "When Sombra has hack go on a long cooldown, subtract a charge"
+Event.OngoingPlayer
+if (EffectiveHero() == Hero.Sombra)
+if (hackCharges > 0)
+if (AbilityCooldown(EventPlayer(), Button.SecondaryFire) > 4)
+{
+  hackCharges -= 1;
+  if (hackCharges > 0) SetAbilityCooldown(EventPlayer(), Button.SecondaryFire, 0);
+}
+
+Number ALLY_HACK_DURATION: 0.4;
+Number ALLY_BOOST_DURATION: 3;
+Number ALLY_HEAL_DURATION: 4;
+rule: "Ally Sombra Hack"
+Event.OngoingPlayer
+if (EffectiveHero() == Hero.Sombra)
+if (IsButtonHeld(EventPlayer(), Button.SecondaryFire))
+if (IsHardCCd() == false)
+if (EntityExists(closestTarget()))
+{
+  hackTarget = closestTarget();
+  AbortIf(TeamOf(hackTarget) == OppositeTeamOf(TeamOf()));
+  hackFX[0] = CreateBeamEffect(
+    VisibleTo: AllPlayers(TeamOf()),
+    BeamType: BeamType.BadBeam,
+    StartPosition: EyePosition(EventPlayer()) - 0.25 * Down(),
+    EndPosition: hardpoint(hackTarget),
+    Color: TeamOf(LocalPlayer()) == TeamOf() ? Color.Purple : Color.Orange,
+    Reevaluation: EffectRev.VisibleToPositionAndRadius
+  );
+  hackFX[1] = CreateEffect(AllPlayers(), Effect.SombraHackingSound, TeamOf(EventPlayer()), EventPlayer(), 100, EffectRev.VisibleToPositionAndRadius);
+  StartChanneling(0.4);
+  WaitUntil(!IsButtonHeld(EventPlayer(), Button.SecondaryFire)
+    || channelProgress == 100
+    || channelState == ChannelState.INTERRUPTED
+    || !IsAlive(hackTarget), ALLY_HACK_DURATION);
+  DestroyEffect(hackFX);
+  if (channelProgress == 100) {
+    hackCharges -= 1;
+    SetStatus(EventPlayer(), null, Status.Stunned, 0.016);
+    PlayEffect(EventPlayer(), PlayEffect.SombraLogoSound, Color.White, PositionOf(EventPlayer()), 100);
+    PlayEffect(hackTarget, PlayEffect.SombraLogoSound, TeamOf(), hackTarget, 100);
+    SetAbilityCooldown(EventPlayer(), Button.SecondaryFire, 0.5);
+    StartHealOverTime(hackTarget, EventPlayer(), 4, 50);
+    SetDamageDealt(hackTarget, 120);
+    SetHealingReceived(hackTarget, 115);
+    CreateEffect(AllPlayers(), Effect.SombraHackedLoopingEffect, TeamOf(), hardpoint(hackTarget), 1, EffectRev.VisibleToPositionAndRadius);
+    Any tempEffecthandle = LastCreatedEntity();
+    CreateEffect(hackTarget, Effect.MercyDamageBoostedEffect, TeamOf(), hackTarget, 1, EffectRev.VisibleToPositionAndRadius);
+    if (hackBuffData) DestroyEffect(hackBuffData.VFX);
+    hackTarget.hackBuffData = HackBuffData.New([tempEffecthandle, LastCreatedEntity()], TotalTimeElapsed() + ALLY_BOOST_DURATION);
+    CSM_Trigger(ChannelStateAction.COMPLETE_CHANNELING);
+    return;
+  }
+  if (channelState == ChannelState.INTERRUPTED) {
+    SetAbilityCooldown(EventPlayer(), Button.SecondaryFire, HACK_COOLDOWN);
+  }
+}
+
+rule: "Clear ally buff"
+Event.OngoingPlayer
+if (hackBuffData != null)
+{
+  WaitUntil(IsDead() || TotalTimeElapsed() >= hackBuffData.expirationTimestamp, ALLY_BOOST_DURATION * MAX_HACK_CHARGES);
+  SetDamageDealt(EventPlayer(), 100);
+  SetHealingReceived(EventPlayer(), 100);
+  DestroyEffect(hackBuffData.VFX);
+  hackBuffData = null;
+}
+
+rule: "If player dies while channeling, interrupt them"
+Event.OnDeath
+if (channelState == ChannelState.CHANNELING)
+{
+  CSM_Trigger(ChannelStateAction.INTERRUPTED);
+}
+
+
+rule: "[interaction/types/battery.del] When player is hard CCd while channeling, interrupt them"
+Event.OngoingPlayer
+if (HasSpawned())
+if (IsAlive())
+if (channelState == ChannelState.CHANNELING)
+if (IsHardCCd())
+{
+  CSM_Trigger(ChannelStateAction.INTERRUPTED);
+}
+
+rule: "Cancel enemy hack if it is going through and we have an allied hack target"
+Event.OngoingPlayer
+if (EffectiveHero() == Hero.Sombra)
+if (IsFiringSecondary(EventPlayer()))
+if (PlayersInViewAngle(EventPlayer(), OppositeTeamOf(TeamOf(EventPlayer())), 19).Any(p => p.IsAlive() && DistanceBetween(EventPlayer(), p) < 16.5 && IsInLineOfSight(EventPlayer(), p, BarrierLOS.EnemyBarriersBlock)))
+{
+  WaitUntil((hackTarget && TeamOf(hackTarget) == TeamOf())
+    || !IsFiringSecondary()
+    || !PlayersInViewAngle(EventPlayer(), OppositeTeamOf(TeamOf(EventPlayer())), 19)
+      .Any(p => p.IsAlive() && DistanceBetween(EventPlayer(), p) < 16.5 && IsInLineOfSight(EventPlayer(), p, BarrierLOS.EnemyBarriersBlock))
+  , 0.62);
+  AbortIf(!hackTarget || TeamOf(hackTarget) != TeamOf());
+  Damage(EventPlayer(), null, 0.001);
+  Heal(EventPlayer(), null, 0.001);
+  SetSecondaryFireEnabled(EventPlayer(), false);
+  SetAbilityCooldown(EventPlayer(), Button.SecondaryFire, 2);
+  SetSecondaryFireEnabled(EventPlayer(), true);
+}
+
+// Credit to Marblr for this setup
+//
+String HUD_NEWLINES: "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
+String HUD_SPACES_TOP: "                                                                                                                                                                                                                                                                                                                                                                                                                                       ";
+playervar Any[] hackChargesHUD = [];
+rule: "Create padding HUD"
+{
+  CreateHudText(
+    VisibleTo: LocalPlayer(),
+    Subheader: "\n\n\n\n",
+    Location: Location.Left,
+    SortOrder: 0,
+    SubheaderColor: Color.White,
+    Reevaluation: HudTextRev.VisibleToAndString,
+    Spectators: Spectators.VisibleNever
+  );
+}
+rule: "Create charges overlay HUD for Sombra"
+Event.OngoingPlayer
+if (EffectiveHero() == Hero.Sombra)
+{
+  CreateHudText(
+    VisibleTo: EventPlayer(),
+    Subheader: <"<2><0><1>",
+      StringSlice(FILLED_CIRCLES, 0, hackCharges * 2),
+      StringSlice(EMPTY_CIRCLES, 0, (MAX_HACK_CHARGES - hackCharges) * 2),
+      // If only OSTW had automatic string splitting :pensive:
+      <"<0><1><2><3><4>",
+        HUD_NEWLINES,
+        HUD_SPACES_TOP,
+        HUD_SPACES_TOP,
+        HUD_SPACES_TOP,
+        "               "
+      >
+    >,
+    Location: Location.Left,
+    SortOrder: 1,
+
+  );
+  hackChargesHUD.ModAppend(LastTextID());
+  CreateHudText(
+    VisibleTo: hackRechargeTimer > 0 ? EventPlayer() : null,
+    Text: <"<0><1>",
+      <"<0><1><2>",
+        HUD_SPACES_TOP,
+        HUD_SPACES_TOP,
+        "                                      "
+      >,
+      RoundToInteger(hackRechargeTimer, Rounding.Up)
+    >,
+    Location: Location.Left,
+    SortOrder: 2
+  );
+  hackChargesHUD.ModAppend(LastTextID());
+  WaitUntil(EffectiveHero() != Hero.Sombra, 1000000);
+  while (hackChargesHUD.Length > 0) {
+    DestroyHudText(hackChargesHUD.Last);
+    hackChargesHUD.ModRemoveByIndex(hackChargesHUD.Length - 1);
+  }
+}
+
+import "OSTWUtils/String.del";
+import "OSTWUtils/OnScreenText.del";
+import "OSTWUtils/Channel.del";

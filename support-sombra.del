@@ -1,0 +1,145 @@
+playervar define HasVirus;
+playervar define FirewallDuration;
+playervar define AllyHackTarget;
+playervar define AllyHackingBeam;
+playervar define AllyHackingSFX;
+playervar define SombraAllyHackTargettingHud;
+playervar define HasFirewall;
+playervar define FirewallSFX;
+playervar define FirewallVFX;
+playervar define FirewallHealth;
+playervar define FirewallHealing;
+playervar define FirewallHealingVFX;
+
+rule: "Sombra Hacking Enemies Disabled"
+Event.OngoingPlayer
+Player.Sombra
+if (IsFiringSecondary(EventPlayer()) == true)
+if (PlayersWithinRadius(EventPlayer(), 16.5, OppositeTeamOf(TeamOf(EventPlayer())), RadiusLOS.Off) > 0)
+if (FilteredArray(PlayersInViewAngle(EventPlayer(), OppositeTeamOf(TeamOf(EventPlayer())), 19), IsAlive(ArrayElement()) == true) > 0)
+{
+    Wait(0.62, WaitBehavior.IgnoreCondition);
+    Damage(EventPlayer(), null, 0.001);
+    Heal(EventPlayer(), null, 0.001);
+    SetSecondaryFireEnabled(EventPlayer(), false);
+    SetAbilityCooldown(EventPlayer(), Button.SecondaryFire, 2);
+    SetSecondaryFireEnabled(EventPlayer(), true);
+}
+
+rule: "Sombra Quick Melee Damage Fix"
+Event.OnDamageDealt
+Player.Sombra
+if (EventAbility() == Button.Melee)
+{
+    Damage(Victim(), EventPlayer(), 6);
+}
+
+rule: "Ally Hacking init"
+Event.OngoingPlayer
+{
+    AllyHackingBeam = [];
+    AllyHackingSFX = [];
+}
+
+rule: "Sombra Ally Hack"
+Event.OngoingPlayer
+Player.Sombra
+if ((DistanceBetween(EventPlayer(), FilteredArray(PlayerClosestToReticle(EventPlayer(), TeamOf(EventPlayer())), IsAlive(ArrayElement()) == true)) <= 25 && IsInLineOfSight(EventPlayer(), FilteredArray(PlayerClosestToReticle(EventPlayer(), TeamOf(EventPlayer())), IsAlive(ArrayElement()) == true), BarrierLOS.EnemyBarriersBlock) && IsFiringSecondary(EventPlayer())) == true)
+if (FilteredArray(PlayersInViewAngle(EventPlayer(), TeamOf(EventPlayer()), 20), IsAlive(ArrayElement()) == true) > 0)
+{
+    AllyHackTarget = FilteredArray(PlayerClosestToReticle(EventPlayer(), TeamOf(EventPlayer())), IsAlive(ArrayElement()) == true && IsInLineOfSight(EventPlayer(), ArrayElement(), BarrierLOS.EnemyBarriersBlock) == true);
+    CreateBeamEffect(AllPlayers(TeamOf(EventPlayer())), BeamType.BadBeam, EventPlayer(), AllyHackTarget, Color.Purple, EffectRev.VisibleToPositionAndRadius);
+    ModifyVariable(AllyHackingBeam, Operation.AppendToArray, LastCreatedEntity());
+    CreateEffect(AllPlayers(Team.All), Effect.SombraHackingSound, TeamOf(EventPlayer()), EventPlayer(), 100, EffectRev.VisibleToPositionAndRadius);
+    ModifyVariable(AllyHackingSFX, Operation.AppendToArray, LastCreatedEntity());
+    SmallMessage(EventPlayer(), "Uploading Firewall...");
+    Wait(0.4, WaitBehavior.AbortWhenFalse);
+    DestroyEffect(AllyHackingBeam);
+    SmallMessage(EventPlayer(), <"Firewall Uploaded to <0> <1>", AllyHackTarget, HeroIconString(HeroOf(AllyHackTarget))>);
+    AllyHackTarget.HasFirewall = true;
+    AllyHackTarget.FirewallDuration = 3;
+    DestroyEffect(AllyHackingSFX);
+    SetSecondaryFireEnabled(EventPlayer(), false);
+    SetAbilityCooldown(EventPlayer(), Button.SecondaryFire, 3);
+    SetSecondaryFireEnabled(EventPlayer(), true);
+}
+
+rule: "Sombra ally hack effects failsafe"
+Event.OngoingPlayer
+if (IsFiringSecondary(EventPlayer()) == false)
+{
+    DestroyEffect(AllyHackingBeam);
+    DestroyEffect(AllyHackingSFX);
+}
+
+rule: "Sombra Ally Hack Target Hud"
+Event.OngoingPlayer
+Player.Sombra
+if (AbilityCooldown(EventPlayer(), Button.SecondaryFire) == 0)
+{
+    CreateInWorldText(IsAlive(PlayerClosestToReticle(EventPlayer(), TeamOf(EventPlayer()))) && DistanceBetween(EventPlayer(), PlayerClosestToReticle(EventPlayer(), TeamOf(EventPlayer()))) <= 25 && IsInViewAngle(EventPlayer(), PlayerClosestToReticle(EventPlayer(), TeamOf(EventPlayer())), 20) && IsInLineOfSight(EventPlayer(), PlayerClosestToReticle(EventPlayer(), TeamOf(EventPlayer())), BarrierLOS.EnemyBarriersBlock) && TeamOf(EventPlayer()) == TeamOf(PlayerClosestToReticle(EventPlayer(), Team.All)) && null == false ? EventPlayer() : null, <"\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\n\r\n\r\n\r\n\r\n     ︿\r\r\r\r\r\n〈      〉\r\r\r\r\n     ﹀\r\r\n     <0>", InputBindingString(Button.SecondaryFire)>, PlayerClosestToReticle(EventPlayer(), TeamOf(EventPlayer())), 3, Clipping.DoNotClip, InworldTextRev.VisibleToPositionAndString, Color.Team1, Spectators.DefaultVisibility);
+    SombraAllyHackTargettingHud = LastTextID();
+    WaitUntil(AbilityCooldown(EventPlayer(), Button.SecondaryFire) != 0, 99999);
+    DestroyInWorldText(SombraAllyHackTargettingHud);
+}
+
+rule: "Sombra Ally Hack Target Hud disappears when swapping characters"
+Event.OngoingPlayer
+if (HeroOf(EventPlayer()) != Hero.Sombra)
+{
+    DestroyInWorldText(SombraAllyHackTargettingHud);
+}
+
+rule: "Sombra Virus Hack"
+Event.OnDamageDealt
+Player.Sombra
+if (EventAbility() == Button.Ability1)
+if (Victim().HasVirus != true)
+{
+    Victim().HasVirus = true;
+}
+
+rule: "Sombra Virus Hack Effects"
+Event.OngoingPlayer
+if (HasVirus == true)
+{
+    if (ArrayContains(AllTankHeroes(), HeroOf(EventPlayer())) == true)
+    {
+        SetStatus(EventPlayer(), PlayersOnHero(Hero.Sombra, OppositeTeamOf(TeamOf(EventPlayer()))), Status.Hacked, 1);
+        WaitUntil(IsDead(EventPlayer()) == true || HasStatus(EventPlayer(), Status.Invincible) == true || HasStatus(EventPlayer(), Status.PhasedOut) == true, 1);
+        ClearStatus(EventPlayer(), Status.Hacked);
+        HasVirus = false;
+        Abort();
+    }
+    SetStatus(EventPlayer(), PlayersOnHero(Hero.Sombra, OppositeTeamOf(TeamOf(EventPlayer()))), Status.Hacked, 2);
+    WaitUntil(IsDead(EventPlayer()) == true || HasStatus(EventPlayer(), Status.Invincible) == true || HasStatus(EventPlayer(), Status.PhasedOut) == true, 2);
+    ClearStatus(EventPlayer(), Status.Hacked);
+    HasVirus = false;
+}
+
+rule: "Firewall Effects"
+Event.OngoingPlayer
+if (HasFirewall == true)
+{
+    FirewallDuration = 5;
+    ChaseVariableAtRate(FirewallDuration, 0, 1, RateChaseReevaluation.DestinationAndRate);
+    Heal(EventPlayer(), PlayersOnHero(Hero.Sombra, TeamOf(EventPlayer())), 50);
+    SmallMessage(EventPlayer(), <"Firewall recieved from <0> <1>", PlayersOnHero(Hero.Sombra, TeamOf(EventPlayer())), HeroIconString(Hero.Sombra)>);
+    CreateEffect(AllPlayers(TeamOf(EventPlayer())), Effect.HealTargetEffect, TeamOf(EventPlayer()), EventPlayer(), 1, EffectRev.VisibleToPositionAndRadius);
+    FirewallHealingVFX = LastCreatedEntity();
+    CreateEffect(AllPlayers(Team.All), Effect.SombraHackedSound, TeamOf(EventPlayer()), EventPlayer(), 100, EffectRev.VisibleToPositionAndRadius);
+    FirewallSFX = LastCreatedEntity();
+    CreateEffect(AllPlayers(TeamOf(EventPlayer())), Effect.Sparkles, Color.Purple, EventPlayer(), 1, EffectRev.VisibleToPositionAndRadius);
+    FirewallVFX = LastCreatedEntity();
+    AddHealthPoolToPlayer(EventPlayer(), HealthType.Health, 75, false, true);
+    FirewallHealth = LastCreatedHealthPool();
+    StartHealOverTime(EventPlayer(), PlayersOnHero(Hero.Sombra, TeamOf(EventPlayer())), 9999, 100);
+    FirewallHealing = LastHealOverTime();
+    WaitUntil(FirewallDuration == 0, 99999);
+    DestroyEffect(FirewallSFX);
+    DestroyEffect(FirewallVFX);
+    DestroyEffect(FirewallHealingVFX);
+    RemoveHealthPoolFromPlayer(FirewallHealth);
+    StopHealOverTime(FirewallHealing);
+    HasFirewall = false;
+}
