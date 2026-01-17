@@ -20,3 +20,11 @@ if (NormalizedHealth() > 0.9)
   Damage(EventPlayer(), null, 1);
   SetPlayerHealth(EventPlayer(), 0.5 * MaxHealth());
 }
+
+rule: "When dummy bot dies, delete it"
+Event.OnDeath
+if (IsDummyBot())
+{
+  Wait(2);
+  DestroyDummyBot(EventPlayer());
+}
