@@ -101,7 +101,7 @@ if (EntityExists(closestTarget()))
     StartHealOverTime(hackTarget, EventPlayer(), 4, 50);
     SetDamageDealt(hackTarget, 120);
     SetHealingReceived(hackTarget, 115);
-    CreateEffect(AllPlayers(), Effect.SombraHackedLoopingEffect, TeamOf(), hardpoint(hackTarget), 1, EffectRev.VisibleToPositionAndRadius);
+    CreateEffect(AllPlayers(), Effect.SombraHackedLoopingEffect, OppositeTeamOf(TeamOf()), UpdateEveryFrame(hardpoint(hackTarget)), 1, EffectRev.VisibleToPositionAndRadius);
     Any tempEffecthandle = LastCreatedEntity();
     CreateEffect(hackTarget, Effect.MercyDamageBoostedEffect, TeamOf(), hackTarget, 1, EffectRev.VisibleToPositionAndRadius);
     if (hackBuffData) DestroyEffect(hackBuffData.VFX);
