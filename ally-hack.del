@@ -104,7 +104,7 @@ if (EntityExists(closestTarget()))
     CreateEffect(AllPlayers(), Effect.SombraHackedLoopingEffect, OppositeTeamOf(TeamOf()), UpdateEveryFrame(hardpoint(hackTarget)), 1, EffectRev.VisibleToPositionAndRadius);
     Any tempEffecthandle = LastCreatedEntity();
     CreateEffect(hackTarget, Effect.MercyDamageBoostedEffect, TeamOf(), hackTarget, 1, EffectRev.VisibleToPositionAndRadius);
-    if (hackBuffData) DestroyEffect(hackBuffData.VFX);
+    if (hackTarget.hackBuffData) DestroyEffect(hackTarget.hackBuffData.VFX);
     hackTarget.hackBuffData = HackBuffData.New([tempEffecthandle, LastCreatedEntity()], TotalTimeElapsed() + ALLY_BOOST_DURATION);
     CSM_Trigger(ChannelStateAction.COMPLETE_CHANNELING);
     return;
