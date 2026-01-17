@@ -5,5 +5,5 @@ import "enemy-hack.del";
 import "virus.del";
 import "translocator.del";
 
-import "debug.del";
+// import "debug.del";
 import "OSTWUtils/StatusEffects.del";
