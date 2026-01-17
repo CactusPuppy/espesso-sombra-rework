@@ -37,6 +37,15 @@ if (hackCharges < MAX_HACK_CHARGES)
   hackCharges += 1;
   LoopIfConditionIsTrue();
 }
+
+rule: "When switching onto sombra, recharge all hack charges"
+Event.OngoingPlayer
+if (EffectiveHero() != Hero.Sombra)
+{
+  WaitUntil(EffectiveHero() == Hero.Sombra, 1000000);
+  hackCharges = MAX_HACK_CHARGES;
+}
+
 rule: "When a Sombra becomes alive on a spawn point, recharge all hack charges"
 Event.OngoingPlayer
 if (HasSpawned())
