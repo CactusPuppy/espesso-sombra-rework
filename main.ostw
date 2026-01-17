@@ -1,5 +1,6 @@
 Hero EffectiveHero(Player p = EventPlayer()): IsDuplicating(p) ? HeroBeingDuplicated(p) : HeroOf(p);
 
 import "ally-hack.del";
+import "enemy-hack.del";
 import "debug.del";
 import "OSTWUtils/StatusEffects.del";
