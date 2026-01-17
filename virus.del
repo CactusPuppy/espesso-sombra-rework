@@ -1,0 +1,40 @@
+rule: "Interrupt Virus cast to shoot a custom projectile"
+Event.OngoingPlayer
+if (EffectiveHero() == Hero.Sombra)
+if (IsUsingAbility1())
+{
+  MinWait();
+  CancelPrimaryAction();
+  CreateProjectile(
+    ProjectileType.OrbProjectile,
+    EventPlayer(),
+    null,
+    null,
+    Relative.ToWorld,
+    ModifyHealthType.Damage,
+    OppositeTeamOf(TeamOf()),
+    0.05,
+    1,
+    0,
+    PlayEffect.BadExplosion,
+    PlayEffect.SombraLogoSound,
+    0,
+    51,
+    30,
+    17,
+    0,
+    0
+  );
+}
+
+rule: "Getting hit by Virus projectile"
+Event.OnDamageTaken
+if (EffectiveHero(Attacker()) == Hero.Sombra)
+if (EventAbility() == null)
+if (EventDamage() < 0.1)
+{
+  StartDamageOverTime(EventPlayer(), Attacker(), 2.5, 50 / 2.5);
+  SetMoveSpeed(EventPlayer(), 75);
+  Wait(2, WaitBehavior.RestartWhenTrue);
+  SetMoveSpeed(EventPlayer(), 100);
+}
