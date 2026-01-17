@@ -34,7 +34,7 @@ if (EventAbility() == null)
 if (EventDamage() < 0.1)
 {
   StartDamageOverTime(EventPlayer(), Attacker(), 2.5, 50 / 2.5);
-  SetMoveSpeed(EventPlayer(), 75);
+  moveSpeed -= 25;
   Wait(2, WaitBehavior.RestartWhenTrue);
-  SetMoveSpeed(EventPlayer(), 100);
+  moveSpeed += 25;
 }

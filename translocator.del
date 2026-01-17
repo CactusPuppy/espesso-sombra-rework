@@ -1,0 +1,42 @@
+playervar Number invisTimeoutTimestamp = -1;
+playervar Number moveSpeed = 100;
+
+rule: "Blink allies when entering stealth"
+Event.OngoingPlayer
+if (EffectiveHero() == Hero.Sombra)
+if (IsUsingAbility2())
+{
+  WaitUntil(!IsUsingAbility2(), 3);
+  AbortIf(IsDead());
+  Player[] affectedPlayers =
+  PlayersWithinRadius(EventPlayer(), 7, TeamOf(), RadiusLOS.Surfaces)
+    .Remove(EventPlayer())
+    .Filter(p => HasSpawned(p) && IsAlive(p));
+  affectedPlayers.invisTimeoutTimestamp = TotalTimeElapsed() + 0.75;
+  StartHealOverTime(affectedPlayers, EventPlayer(), 2, 45);
+}
+
+rule: "Handle going invis"
+Event.OngoingPlayer
+if (invisTimeoutTimestamp != -1)
+{
+  PlayEffect(AllPlayers(), PlayEffect.BadPickupEffect, TeamOf(), PositionOf(EventPlayer()), 1);
+  PlayEffect(AllPlayers(), PlayEffect.MoiraFadeDisappearSound, TeamOf(), EventPlayer(), 100);
+  SetInvisible(EventPlayer(), InvisibleTo.Enemies);
+  moveSpeed += 50;
+  WaitUntil(TotalTimeElapsed() >= invisTimeoutTimestamp, 1000000);
+  SetInvisible(EventPlayer(), InvisibleTo.None);
+  moveSpeed -= 50;
+  PlayEffect(AllPlayers(), PlayEffect.GoodPickupEffect, TeamOf(), EventPlayer(), 1);
+  PlayEffect(AllPlayers(), PlayEffect.MoiraFadeReappearSound, TeamOf(), EventPlayer(), 100);
+  invisTimeoutTimestamp = -1;
+}
+
+rule: "Continuously update move speed percent"
+Event.OngoingPlayer
+{
+  SetMoveSpeed(EventPlayer(), moveSpeed);
+  WaitUntil(moveSpeed != EvaluateOnce(moveSpeed), 1000000);
+  Loop();
+}
+
