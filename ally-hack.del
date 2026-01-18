@@ -19,10 +19,11 @@ playervar HackBuffData hackBuffData = null;
 // since it's not actually possible to get the actual hardpoint beyond their bind pose
 Vector hardpoint(Player p): PositionOf(p) + 1.3 * Up();
 
-Player closestTarget(Player p = EventPlayer()): PlayersInViewAngle(p, Team.All, 20)
-  .Filter(t => t.IsAlive() && HasSpawned(t) && IsInLineOfSight(p.EyePosition(), hardpoint(t), BarrierLOS.EnemyBarriersBlock))
-  .Sort(t => AngleBetweenVectors(p.FacingDirection(), hardpoint(t) - p.EyePosition()))
-  .First;
+Player closestTarget(Player p = EventPlayer(), Team targetsTeam = Team.All):
+  PlayersInViewAngle(p, targetsTeam, 20)
+    .Filter(t => t.IsAlive() && HasSpawned(t) && IsInLineOfSight(p.EyePosition(), hardpoint(t), BarrierLOS.EnemyBarriersBlock) && DistanceBetween(t, p) <= 25)
+    .Sort(t => AngleBetweenVectors(p.FacingDirection(), hardpoint(t) - p.EyePosition()))
+    .First;
 
 rule: "If a Sombra has fewer than max charges, restore them"
 Event.OngoingPlayer
@@ -180,7 +181,8 @@ if (PlayersInViewAngle(EventPlayer(), OppositeTeamOf(TeamOf(EventPlayer())), 19)
 String HUD_NEWLINES: "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
 String HUD_SPACES_TOP: "                                                                                                                                                                                                                                                                                                                                                                                                                                       ";
 playervar Any[] hackChargesHUD = [];
-rule: "Create padding HUD"
+playervar Any[] hackIndicatorIWTs = [];
+rule: "Create padding HUD and hack indicator"
 {
   CreateHudText(
     VisibleTo: LocalPlayer(),
@@ -229,6 +231,34 @@ if (EffectiveHero() == Hero.Sombra)
     SortOrder: 2
   );
   hackChargesHUD.ModAppend(LastTextID());
+  CreateInWorldText(
+    VisibleTo:      closestTarget(EventPlayer()).Team() == TeamOf()
+                      && hackCharges > 0
+                      && !IsHardCCd()
+                    ? EventPlayer() : null,
+    Header:         <"\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\n\r\n\r\n\r\n\r\n     ︿\r\r\r\r\r\n〈      〉\r\r\r\r\n     ﹀\r\r\n">,
+    Position: UpdateEveryFrame(closestTarget(EventPlayer())),
+    Scale: 3,
+    Clipping.DoNotClip,
+    InworldTextRev.VisibleToPositionAndString,
+    <Color>TeamOf(),
+    Spectators.DefaultVisibility
+  );
+  hackIndicatorIWTs.ModAppend(LastTextID());
+  CreateInWorldText(
+    VisibleTo:      closestTarget(EventPlayer()).Team() == TeamOf()
+                      && hackCharges > 0
+                      && !IsHardCCd()
+                    ? EventPlayer() : null,
+    Header:         <"\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\n\r\n\r\n\r\n\r\n\r\r\r\r\r\n\r\r\r\r\n<0>\r\r\n", InputBindingString(Button.SecondaryFire)>,
+    Position: UpdateEveryFrame(closestTarget(EventPlayer())),
+    Scale: 2,
+    Clipping.DoNotClip,
+    InworldTextRev.VisibleToPositionAndString,
+    Color.Team1,
+    Spectators.DefaultVisibility
+  );
+  hackIndicatorIWTs.ModAppend(LastTextID());
   WaitUntil(EffectiveHero() != Hero.Sombra, 1000000);
   while (hackChargesHUD.Length > 0) {
     DestroyHudText(hackChargesHUD.Last);
