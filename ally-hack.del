@@ -255,7 +255,7 @@ if (EffectiveHero() == Hero.Sombra)
     Scale: 2,
     Clipping.DoNotClip,
     InworldTextRev.VisibleToPositionAndString,
-    Color.Team1,
+    <Color>TeamOf(),
     Spectators.DefaultVisibility
   );
   hackIndicatorIWTs.ModAppend(LastTextID());
