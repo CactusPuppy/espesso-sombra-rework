@@ -7,3 +7,11 @@ import "translocator.del";
 
 // import "debug.del";
 import "OSTWUtils/StatusEffects.del";
+
+rule: "Sombra gun does less"
+Event.OnDamageDealt
+if (EffectiveHero() == Hero.Sombra)
+if (EventAbility() == Button.PrimaryFire)
+{
+  SetPlayerHealth(Victim(), Health(Victim()) + 0.2 * EventDamage());
+}
