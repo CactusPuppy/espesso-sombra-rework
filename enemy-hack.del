@@ -4,7 +4,8 @@ rule: "When hacked, do stuff"
 Event.OngoingPlayer
 if (HasStatus(EventPlayer(), Status.Hacked))
 {
-  damageDealtPercent -= 25;
+  Damage(EventPlayer(), null, 25);
+  if (!debuffRemovalTimestamp) damageDealtPercent -= 25;
   SetHealingDealt(EventPlayer(), 75);
   debuffRemovalTimestamp = TotalTimeElapsed() + 5;
 }
@@ -16,6 +17,7 @@ if (debuffRemovalTimestamp)
   WaitUntil(TotalTimeElapsed() >= debuffRemovalTimestamp || HasStatus(EventPlayer(), Status.PhasedOut), 1000000);
   damageDealtPercent += 25;
   SetHealingDealt(EventPlayer(), 100);
+  debuffRemovalTimestamp = 0;
 }
 
 rule: "Continuously update damage dealt percent"
