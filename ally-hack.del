@@ -264,6 +264,10 @@ if (EffectiveHero() == Hero.Sombra)
     DestroyHudText(hackChargesHUD.Last);
     hackChargesHUD.ModRemoveByIndex(hackChargesHUD.Length - 1);
   }
+  while (hackIndicatorIWTs.Length > 0) {
+    DestroyInWorldText(hackIndicatorIWTs.Last);
+    hackIndicatorIWTs.ModRemoveByIndex(hackIndicatorIWTs.Length - 1);
+  }
 }
 
 import "OSTWUtils/String.del";
